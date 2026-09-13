@@ -396,11 +396,6 @@ if "analysis_result" in st.session_state:
 
     score = result.match_score
 
-
-    # --------------------------------------------------------
-    # MATCH STATUS
-    # --------------------------------------------------------
-
     if score >= 80:
         status = "Strong Match"
         status_color = "#047857"
