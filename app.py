@@ -1050,249 +1050,95 @@ if "analysis_result" in st.session_state:
         text=f"ATS requirement coverage: {ats_score}%"
     )
 
+# ========================================================
+# REQUIREMENT DETAILS
+# ========================================================
 
-    # ========================================================
-    # REQUIREMENT DETAILS
-    # ========================================================
+st.subheader("📋 Requirement Details")
 
-    for item in requirements:
+for item in requirements:
 
-        requirement = html.escape(
-            str(
-                item.get(
-                    "requirement",
-                    ""
-                )
+    requirement = str(
+        item.get("requirement", "")
+    ).strip()
+
+    status = str(
+        item.get("status", "Missing")
+    ).strip().lower()
+
+    explanation = str(
+        item.get("explanation", "")
+    ).strip()
+
+
+    if not requirement:
+        continue
+
+
+    # ----------------------------------------------------
+    # FOUND
+    # ----------------------------------------------------
+
+    if status == "found":
+
+        with st.container(border=True):
+
+            st.markdown(
+                f"### ✅ {requirement}"
             )
-        )
-
-
-        status = str(
-            item.get(
-                "status",
-                "Missing"
-            )
-        ).strip().lower()
-
-
-        explanation = html.escape(
-            str(
-                item.get(
-                    "explanation",
-                    ""
-                )
-            )
-        )
-
-
-        if status == "found":
-
-            icon = "✅"
-            status_class = "found"
-            status_text = "Found"
-
-
-        elif status == "partial":
-
-            icon = "⚠️"
-            status_class = "partial"
-            status_text = "Partial"
-
-
-        else:
-
-            icon = "❌"
-            status_class = "missing"
-            status_text = "Missing"
-
-
-        st.markdown(
-            f"""
-            <div class="requirement-card">
-
-                <div class="requirement-title">
-                    {icon} {requirement}
-                    <span class="{status_class}">
-                        — {status_text}
-                    </span>
-                </div>
-
-                <div class="requirement-detail">
-                    {explanation}
-                </div>
-
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-
-    # ========================================================
-    # OVERALL ASSESSMENT
-    # ========================================================
-
-    st.subheader("🧠 Overall Assessment")
-
-    overall_assessment = result.get(
-        "overall_assessment",
-        ""
-    )
-
-
-    if overall_assessment:
-
-        st.info(
-            overall_assessment
-        )
-
-
-    # ========================================================
-    # EXPERIENCE MATCH
-    # ========================================================
-
-    st.subheader("💼 Experience Match")
-
-    experience_explanation = result.get(
-        "experience_explanation",
-        ""
-    )
-
-
-    if experience_explanation:
-
-        st.write(
-            experience_explanation
-        )
-
-
-    # ========================================================
-    # STRENGTHS + MISSING SKILLS
-    # ========================================================
-
-    strength_col, missing_col = st.columns(2)
-
-
-    with strength_col:
-
-        st.subheader("✓ Resume Strengths")
-
-        strengths = result.get(
-            "strengths",
-            []
-        )
-
-
-        if strengths:
-
-            for item in strengths:
-
-                st.success(item)
-
-        else:
-
-            st.write(
-                "No specific strengths were identified."
-            )
-
-
-    with missing_col:
-
-        st.subheader("⚠ Missing / Weak Skills")
-
-        missing_skills = result.get(
-            "missing_skills",
-            []
-        )
-
-
-        if missing_skills:
-
-            for item in missing_skills:
-
-                st.warning(item)
-
-        else:
 
             st.success(
-                "No major missing skills identified."
+                "Found"
             )
 
+            if explanation:
 
-    # ========================================================
-    # WEAK REQUIREMENTS
-    # ========================================================
-
-    st.subheader("⚠ Weak Requirements")
-
-    weak_requirements = result.get(
-        "weak_requirements",
-        []
-    )
+                st.write(
+                    explanation
+                )
 
 
-    if weak_requirements:
+    # ----------------------------------------------------
+    # PARTIAL
+    # ----------------------------------------------------
 
-        for item in weak_requirements:
+    elif status == "partial":
 
-            st.warning(item)
+        with st.container(border=True):
 
-    else:
-
-        st.success(
-            "No major weak requirements were identified."
-        )
-
-
-    # ========================================================
-    # IMPROVEMENT SUGGESTIONS
-    # ========================================================
-
-    st.subheader("🚀 Improvement Suggestions")
-
-    suggestions = result.get(
-        "improvement_suggestions",
-        []
-    )
-
-
-    if suggestions:
-
-        for item in suggestions:
-
-            st.info(item)
-
-    else:
-
-        st.write(
-            "No additional improvement suggestions were identified."
-        )
-
-
-    # ========================================================
-    # INTERVIEW PREPARATION
-    # ========================================================
-
-    st.subheader("🎤 Interview Preparation")
-
-    interview_questions = result.get(
-        "interview_questions",
-        []
-    )
-
-
-    if interview_questions:
-
-        for index, question in enumerate(
-            interview_questions,
-            start=1
-        ):
-
-            st.write(
-                f"**{index}. {question}**"
+            st.markdown(
+                f"### ⚠️ {requirement}"
             )
 
+            st.warning(
+                "Partial"
+            )
+
+            if explanation:
+
+                st.write(
+                    explanation
+                )
+
+
+    # ----------------------------------------------------
+    # MISSING
+    # ----------------------------------------------------
+
     else:
 
-        st.write(
-            "No interview questions were generated."
-        )
+        with st.container(border=True):
+
+            st.markdown(
+                f"### ❌ {requirement}"
+            )
+
+            st.error(
+                "Missing"
+            )
+
+            if explanation:
+
+                st.write(
+                    explanation
+                )
