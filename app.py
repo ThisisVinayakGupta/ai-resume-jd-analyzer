@@ -1,5 +1,4 @@
 import os
-import json
 import streamlit as st
 from pypdf import PdfReader
 from google import genai
@@ -9,7 +8,7 @@ from typing import List
 
 
 # ============================================================
-# PAGE CONFIGURATION
+# PAGE CONFIG
 # ============================================================
 
 st.set_page_config(
@@ -28,7 +27,6 @@ st.markdown(
     """
     <style>
 
-    /* Main page */
     .block-container {
         max-width: 1150px;
         padding-top: 2rem;
@@ -39,7 +37,6 @@ st.markdown(
         background-color: #f8fafc;
     }
 
-    /* Brand */
     .brand {
         font-size: 2.4rem;
         font-weight: 800;
@@ -54,7 +51,6 @@ st.markdown(
         margin-bottom: 2rem;
     }
 
-    /* Section labels */
     .input-title {
         font-size: 1rem;
         font-weight: 700;
@@ -68,7 +64,6 @@ st.markdown(
         margin-bottom: 0.7rem;
     }
 
-    /* Buttons */
     .stButton > button {
         border-radius: 10px;
         min-height: 3rem;
@@ -76,22 +71,19 @@ st.markdown(
         font-size: 1rem;
     }
 
-    /* Metric */
     [data-testid="stMetric"] {
         background: white;
         border: 1px solid #e2e8f0;
         border-radius: 16px;
-        padding: 1.2rem;
+        padding: 1rem;
         box-shadow: 0 3px 12px rgba(15, 23, 42, 0.04);
     }
 
-    /* Expanders */
     [data-testid="stExpander"] {
         border-radius: 10px;
         border: 1px solid #e2e8f0;
     }
 
-    /* Footer */
     .footer {
         text-align: center;
         color: #94a3b8;
@@ -111,10 +103,37 @@ st.markdown(
 # AI RESPONSE STRUCTURE
 # ============================================================
 
+class CategoryScores(BaseModel):
+
+    skills_match: int = Field(
+        description="Skills match score from 0 to 100"
+    )
+
+    experience_match: int = Field(
+        description="Experience match score from 0 to 100"
+    )
+
+    responsibilities_match: int = Field(
+        description="Responsibilities match score from 0 to 100"
+    )
+
+    tools_match: int = Field(
+        description="Tools and technologies match score from 0 to 100"
+    )
+
+    education_match: int = Field(
+        description="Education match score from 0 to 100"
+    )
+
+    evidence_match: int = Field(
+        description="Evidence and project match score from 0 to 100"
+    )
+
+
 class ResumeAnalysis(BaseModel):
 
-    match_score: int = Field(
-        description="Overall resume to job match score from 0 to 100"
+    category_scores: CategoryScores = Field(
+        description="Six category scores used to calculate the final match score"
     )
 
     overall_assessment: str = Field(
@@ -129,8 +148,8 @@ class ResumeAnalysis(BaseModel):
         description="Missing or weak skills compared with the job"
     )
 
-    experience_match: str = Field(
-        description="Explanation of how the candidate experience matches the job"
+    experience_explanation: str = Field(
+        description="Explanation of how candidate experience matches the job"
     )
 
     weak_requirements: List[str] = Field(
@@ -244,27 +263,23 @@ analyze_button = st.button(
 
 
 # ============================================================
-# RUN AI ANALYSIS
+# AI ANALYSIS
 # ============================================================
 
 if analyze_button:
 
-    # Check resume
     if resume_file is None:
 
         st.error("Please upload your resume PDF.")
-
         st.stop()
 
 
-    # Check job description
     if len(job_description.strip()) < 50:
 
         st.error(
             "Please paste a complete job description "
             "(at least 50 characters)."
         )
-
         st.stop()
 
 
@@ -272,9 +287,9 @@ if analyze_button:
 
         with st.spinner("Analyzing your resume with AI..."):
 
-            # --------------------------------------------
-            # Extract resume text
-            # --------------------------------------------
+            # ------------------------------------------------
+            # Extract PDF text
+            # ------------------------------------------------
 
             reader = PdfReader(resume_file)
 
@@ -285,27 +300,27 @@ if analyze_button:
                 page_text = page.extract_text()
 
                 if page_text:
+
                     resume_text += page_text + "\n"
 
 
             if not resume_text.strip():
 
                 st.error(
-                    "I could not extract readable text from this PDF. "
-                    "Please try another PDF."
+                    "Could not extract readable text from this PDF."
                 )
-
                 st.stop()
 
 
-            # --------------------------------------------
-            # AI Prompt
-            # --------------------------------------------
+            # ------------------------------------------------
+            # AI PROMPT
+            # ------------------------------------------------
 
             prompt = f"""
 You are an experienced technical recruiter and resume analyst.
 
-Analyze the candidate's resume against the target job description.
+Your task is to evaluate the candidate's resume against the target
+job description using evidence from the resume.
 
 ========================
 CANDIDATE RESUME
@@ -320,101 +335,118 @@ TARGET JOB DESCRIPTION
 {job_description}
 
 ========================
-ANALYSIS REQUIREMENTS
+SCORING FRAMEWORK
 ========================
 
-Provide a realistic and evidence-based analysis.
+Evaluate these six categories independently.
 
-1. Give an overall match score from 0 to 100.
+1. SKILLS MATCH
+Weight: 25%
 
-2. Consider:
-   - Technical skills
-   - Tools and technologies
-   - Work experience
-   - Responsibilities
-   - Education
-   - Projects
-   - Evidence of required skills
+Compare required skills with skills clearly demonstrated in the resume.
 
-3. Do not give a high score only because keywords appear.
+2. EXPERIENCE MATCH
+Weight: 20%
 
-4. Do not invent experience, skills, projects or qualifications.
+Compare years, seniority, industry and type of experience.
 
-5. Clearly identify missing or weak requirements.
+3. RESPONSIBILITIES MATCH
+Weight: 20%
 
-6. Explain the experience match realistically.
+Compare the candidate's actual responsibilities with the job responsibilities.
 
-7. Give practical resume improvement suggestions.
+4. TOOLS & TECHNOLOGIES
+Weight: 15%
 
-8. Generate exactly 5 interview questions based on the job and the candidate.
+Compare software, platforms, programming languages, databases,
+cloud technologies and other tools.
 
-Keep the analysis professional, concise and useful for a job seeker.
+5. EDUCATION
+Weight: 10%
+
+Compare degree, academic background and relevant education.
+
+6. EVIDENCE / PROJECTS
+Weight: 10%
+
+Look for projects, measurable achievements and concrete evidence
+supporting the candidate's claims.
+
+========================
+SCORING RULES
+========================
+
+Give every category a score from 0 to 100.
+
+Use evidence from the resume.
+
+Do NOT give a high score just because a keyword appears.
+
+Do NOT invent skills, experience, projects or qualifications.
+
+If a requirement is only weakly implied, score it conservatively.
+
+If the resume does not provide evidence, do not assume the candidate
+has the skill.
+
+The final score will be calculated automatically using the weights.
+
+Also provide:
+
+- Overall assessment
+- Resume strengths
+- Missing or weak skills
+- Experience explanation
+- Weak requirements
+- Specific improvement suggestions
+- Exactly five interview questions
+
+Keep everything professional, realistic and useful to a job seeker.
 """
 
 
-            # --------------------------------------------
-            # Gemini structured response
-            # --------------------------------------------
+            # ------------------------------------------------
+            # GEMINI REQUEST
+            # ------------------------------------------------
 
             response = client.models.generate_content(
+
                 model="gemini-3.6-flash",
+
                 contents=prompt,
+
                 config=types.GenerateContentConfig(
+
                     response_mime_type="application/json",
-                    response_schema=ResumeAnalysis
+
+                    response_schema=ResumeAnalysis,
+
+                    temperature=0.2
                 )
             )
 
 
-            # --------------------------------------------
-            # Parse AI result
-            # --------------------------------------------
+            # ------------------------------------------------
+            # PARSED RESULT
+            # ------------------------------------------------
 
-            parsed_result = response.parsed
+            result = response.parsed
 
-            if parsed_result is None:
+            if result is None:
 
-                if not response.text:
+                st.error(
+                    "The AI returned an unexpected response. "
+                    "Please try again."
+                )
 
-                    st.error(
-                        "The AI returned an empty response. "
-                        "Please try again."
-                    )
-
-                    st.stop()
-
-                data = json.loads(response.text)
-
-                result = ResumeAnalysis.model_validate(data)
-
-            else:
-
-                if isinstance(parsed_result, ResumeAnalysis):
-
-                    result = parsed_result
-
-                else:
-
-                    result = ResumeAnalysis.model_validate(
-                        parsed_result
-                    )
+                st.stop()
 
 
-            # --------------------------------------------
-            # Store result
-            # --------------------------------------------
+            # ------------------------------------------------
+            # SAVE RESULT
+            # ------------------------------------------------
 
             st.session_state["analysis_result"] = result
-
-
-    except json.JSONDecodeError:
-
-        st.error(
-            "The AI response could not be processed. "
-            "Please try the analysis again."
-        )
-
-        st.stop()
 
 
     except Exception as e:
@@ -424,7 +456,8 @@ Keep the analysis professional, concise and useful for a job seeker.
         )
 
         st.caption(
-            "Please check your API configuration or try again."
+            "Please try again. If the problem continues, check the "
+            "Streamlit app logs."
         )
 
         st.stop()
@@ -438,32 +471,66 @@ if "analysis_result" in st.session_state:
 
     result = st.session_state["analysis_result"]
 
-
-    # --------------------------------------------------------
-    # SAFE SCORE
-    # --------------------------------------------------------
-
-    try:
-
-        score = int(result.match_score)
-
-    except Exception:
-
-        score = 0
+    scores = result.category_scores
 
 
-    score = max(0, min(score, 100))
+    # ========================================================
+    # SAFE CATEGORY SCORES
+    # ========================================================
+
+    skills_score = max(0, min(int(scores.skills_match), 100))
+
+    experience_score = max(
+        0,
+        min(int(scores.experience_match), 100)
+    )
+
+    responsibilities_score = max(
+        0,
+        min(int(scores.responsibilities_match), 100)
+    )
+
+    tools_score = max(
+        0,
+        min(int(scores.tools_match), 100)
+    )
+
+    education_score = max(
+        0,
+        min(int(scores.education_match), 100)
+    )
+
+    evidence_score = max(
+        0,
+        min(int(scores.evidence_match), 100)
+    )
 
 
-    # --------------------------------------------------------
+    # ========================================================
+    # WEIGHTED FINAL SCORE
+    # ========================================================
+
+    final_score = round(
+        (
+            skills_score * 0.25
+            + experience_score * 0.20
+            + responsibilities_score * 0.20
+            + tools_score * 0.15
+            + education_score * 0.10
+            + evidence_score * 0.10
+        )
+    )
+
+
+    # ========================================================
     # MATCH STATUS
-    # --------------------------------------------------------
+    # ========================================================
 
-    if score >= 80:
+    if final_score >= 80:
 
         status = "Strong Match"
 
-    elif score >= 60:
+    elif final_score >= 60:
 
         status = "Moderate Match"
 
@@ -472,61 +539,153 @@ if "analysis_result" in st.session_state:
         status = "Low Match"
 
 
+    # ========================================================
+    # RESULTS HEADER
+    # ========================================================
+
     st.divider()
 
+    st.markdown("## 📊 Resume Match Analysis")
 
-    # ========================================================
-    # SCORE + ASSESSMENT
-    # ========================================================
-
-    score_col, assessment_col = st.columns(
-        [1, 2],
-        gap="large"
+    st.caption(
+        "AI evaluation across six resume-to-job compatibility dimensions."
     )
+
+
+    # ========================================================
+    # MAIN SCORE
+    # ========================================================
+
+    score_col, status_col = st.columns(2, gap="large")
 
 
     with score_col:
 
-        st.markdown("### AI Match Score")
-
         st.metric(
-            label="Resume compatibility",
-            value=f"{score}%"
+            "Overall Match Score",
+            f"{final_score}%"
+        )
+
+        st.progress(
+            final_score / 100,
+            text=f"Overall compatibility: {final_score}%"
         )
 
 
-        if score >= 80:
+    with status_col:
 
-            st.success(f"✓ {status}")
+        st.metric(
+            "Candidate Fit",
+            status
+        )
 
-        elif score >= 60:
+        if final_score >= 80:
 
-            st.warning(f"⚠ {status}")
+            st.success(
+                "The resume shows strong alignment with this job."
+            )
+
+        elif final_score >= 60:
+
+            st.warning(
+                "The resume has reasonable alignment but has some gaps."
+            )
 
         else:
 
-            st.error(f"✕ {status}")
-
-
-    with assessment_col:
-
-        st.markdown("### Overall Assessment")
-
-        st.info(result.overall_assessment)
-
-        st.progress(
-            score / 100,
-            text=f"Resume compatibility: {score}%"
-        )
+            st.error(
+                "The resume has significant gaps for this position."
+            )
 
 
     # ========================================================
-    # EXPERIENCE MATCH
+    # CATEGORY BREAKDOWN
+    # ========================================================
+
+    st.markdown("### 📈 Match Breakdown")
+
+    col1, col2, col3 = st.columns(3)
+
+
+    with col1:
+
+        st.metric(
+            "Skills",
+            f"{skills_score}%"
+        )
+
+        st.progress(skills_score / 100)
+
+
+    with col2:
+
+        st.metric(
+            "Experience",
+            f"{experience_score}%"
+        )
+
+        st.progress(experience_score / 100)
+
+
+    with col3:
+
+        st.metric(
+            "Responsibilities",
+            f"{responsibilities_score}%"
+        )
+
+        st.progress(responsibilities_score / 100)
+
+
+    col4, col5, col6 = st.columns(3)
+
+
+    with col4:
+
+        st.metric(
+            "Tools & Technology",
+            f"{tools_score}%"
+        )
+
+        st.progress(tools_score / 100)
+
+
+    with col5:
+
+        st.metric(
+            "Education",
+            f"{education_score}%"
+        )
+
+        st.progress(education_score / 100)
+
+
+    with col6:
+
+        st.metric(
+            "Evidence / Projects",
+            f"{evidence_score}%"
+        )
+
+        st.progress(evidence_score / 100)
+
+
+    # ========================================================
+    # OVERALL ASSESSMENT
+    # ========================================================
+
+    st.markdown("### 🧠 Overall Assessment")
+
+    st.info(result.overall_assessment)
+
+
+    # ========================================================
+    # EXPERIENCE
     # ========================================================
 
     st.markdown("### 💼 Experience Match")
 
-    st.write(result.experience_match)
+    st.write(result.experience_explanation)
 
 
     # ========================================================
@@ -551,7 +710,9 @@ if "analysis_result" in st.session_state:
 
         else:
 
-            st.write("No specific strengths were identified.")
+            st.write(
+                "No specific strengths were identified."
+            )
 
 
     with missing_col:
@@ -566,7 +727,9 @@ if "analysis_result" in st.session_state:
 
         else:
 
-            st.success("No major skill gaps identified.")
+            st.success(
+                "No major skill gaps identified."
+            )
 
 
     # ========================================================
@@ -584,7 +747,7 @@ if "analysis_result" in st.session_state:
     else:
 
         st.success(
-            "The resume demonstrates the major requirements of the job."
+            "The resume demonstrates the major requirements."
         )
 
 
@@ -596,26 +759,31 @@ if "analysis_result" in st.session_state:
 
     if result.improvement_suggestions:
 
-        for i, item in enumerate(
+        for number, item in enumerate(
             result.improvement_suggestions,
             start=1
         ):
 
-            st.info(f"**{i}.** {item}")
+            st.info(
+                f"**{number}.** {item}"
+            )
 
     else:
 
-        st.write("No additional suggestions were generated.")
+        st.write(
+            "No additional suggestions were generated."
+        )
 
 
     # ========================================================
-    # INTERVIEW PREPARATION
+    # INTERVIEW QUESTIONS
     # ========================================================
 
     st.markdown("### 🎤 Interview Preparation")
 
     st.caption(
-        "Questions you may want to prepare for based on this job."
+        "Questions generated specifically from the job requirements "
+        "and candidate profile."
     )
 
 
@@ -624,13 +792,13 @@ if "analysis_result" in st.session_state:
 
     if questions:
 
-        for i, question in enumerate(
+        for number, question in enumerate(
             questions,
             start=1
         ):
 
             with st.expander(
-                f"Question {i}"
+                f"Question {number}"
             ):
 
                 st.write(question)
