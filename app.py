@@ -117,7 +117,7 @@ st.markdown("""
         font-size: 0.9rem;
     }
 </style>
-""")
+""", unsafe_allow_html=True)
 
 st.markdown("""
 <div class="hero">
