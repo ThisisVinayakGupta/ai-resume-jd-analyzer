@@ -1,5 +1,4 @@
 import os
-import json
 from typing import List
 
 import streamlit as st
@@ -18,53 +17,36 @@ st.set_page_config(
     page_title="ResumeMatch Pro",
     page_icon="🚀",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="collapsed",
 )
 
 
 # ============================================================
-# CUSTOM CSS
+# PAGE STYLE
 # ============================================================
 
 st.markdown(
     """
     <style>
+        .block-container {
+            max-width: 1100px;
+            padding-top: 2rem;
+            padding-bottom: 3rem;
+        }
 
-    .main {
-        background-color: #f8fafc;
-    }
+        .subtitle {
+            color: #64748b;
+            margin-top: -10px;
+            margin-bottom: 25px;
+        }
 
-    .block-container {
-        max-width: 1100px;
-        padding-top: 2rem;
-        padding-bottom: 3rem;
-    }
-
-    h1 {
-        font-weight: 700;
-        letter-spacing: -0.5px;
-    }
-
-    h2, h3 {
-        font-weight: 650;
-    }
-
-    .subtitle {
-        color: #64748b;
-        margin-top: -10px;
-        margin-bottom: 25px;
-    }
-
-    .section-description {
-        color: #64748b;
-        font-size: 0.9rem;
-        margin-top: -10px;
-        margin-bottom: 15px;
-    }
-
+        .small-text {
+            color: #64748b;
+            font-size: 0.9rem;
+        }
     </style>
     """,
-    unsafe_allow_html=True
+    unsafe_allow_html=True,
 )
 
 
@@ -73,7 +55,6 @@ st.markdown(
 # ============================================================
 
 class CategoryScores(BaseModel):
-
     skills_match: int
     experience_match: int
     responsibilities_match: int
@@ -83,30 +64,20 @@ class CategoryScores(BaseModel):
 
 
 class Requirement(BaseModel):
-
     requirement: str
     status: str
     explanation: str
 
 
 class ResumeAnalysis(BaseModel):
-
     category_scores: CategoryScores
-
     requirements: List[Requirement]
-
     overall_assessment: str
-
     strengths: List[str]
-
     missing_skills: List[str]
-
     experience_explanation: str
-
     weak_requirements: List[str]
-
     improvement_suggestions: List[str]
-
     interview_questions: List[str]
 
 
@@ -114,9 +85,8 @@ class ResumeAnalysis(BaseModel):
 # HELPER FUNCTIONS
 # ============================================================
 
-def clamp_score(value):
-    """Keep a score between 0 and 100."""
-
+def safe_score(value):
+    """Convert a value into a safe 0-100 score."""
     try:
         value = int(value)
     except Exception:
@@ -125,34 +95,39 @@ def clamp_score(value):
     return max(0, min(100, value))
 
 
-def clean_text(value):
-    """Safely convert a value to clean text."""
-
+def safe_text(value):
+    """Convert a value into clean text."""
     if value is None:
         return ""
-
     return str(value).strip()
 
 
-def clean_list(items):
-    """Safely clean AI-generated lists."""
-
-    if not isinstance(items, list):
+def safe_list(value):
+    """Return a clean list of strings."""
+    if not isinstance(value, list):
         return []
 
-    result = []
-
-    for item in items:
-
-        text = clean_text(item)
-
-        if text:
-            result.append(text)
-
-    return result
+    return [
+        str(item).strip()
+        for item in value
+        if str(item).strip()
+    ]
 
 
-def calculate_ats_score(requirements):
+def calculate_final_score(scores):
+    """Calculate weighted resume-to-JD score."""
+
+    return round(
+        scores["skills"] * 0.25
+        + scores["experience"] * 0.20
+        + scores["responsibilities"] * 0.20
+        + scores["tools"] * 0.15
+        + scores["education"] * 0.10
+        + scores["evidence"] * 0.10
+    )
+
+
+def calculate_ats(requirements):
     """
     ATS scoring:
 
@@ -167,114 +142,96 @@ def calculate_ats_score(requirements):
 
     for item in requirements:
 
-        status = clean_text(
+        status = safe_text(
             item.get("status", "")
         ).lower()
 
         if status == "found":
-
             found += 1
 
         elif status == "partial":
-
             partial += 1
 
         else:
-
             missing += 1
 
     total = found + partial + missing
 
     if total == 0:
-
-        return 0, 0, 0, 0
+        return 0, found, partial, missing
 
     score = round(
-        (
-            found + (partial * 0.5)
-        )
-        / total
-        * 100
+        ((found + partial * 0.5) / total) * 100
     )
 
     return score, found, partial, missing
 
 
-def get_match_status(score):
+def match_status(score):
 
     if score >= 80:
-
         return (
             "Strong Match",
-            "The resume has strong alignment with the target role."
+            "The resume has strong alignment with the target role.",
         )
 
-    elif score >= 60:
-
+    if score >= 60:
         return (
             "Moderate Match",
-            "The resume has reasonable alignment but has some gaps."
+            "The resume has reasonable alignment but has some gaps.",
         )
 
-    else:
-
-        return (
-            "Low Match",
-            "The resume has significant gaps for this role."
-        )
+    return (
+        "Low Match",
+        "The resume has significant gaps for this role.",
+    )
 
 
-def normalize_requirements(requirements):
-    """
-    Clean and normalize Gemini requirement output.
-    """
+def normalize_requirements(items):
 
-    if not isinstance(requirements, list):
+    if not isinstance(items, list):
         return []
 
-    cleaned = []
+    requirements = []
 
-    for item in requirements:
+    for item in items:
 
         if not isinstance(item, dict):
             continue
 
-        requirement = clean_text(
+        requirement = safe_text(
             item.get("requirement")
         )
 
-        status = clean_text(
-            item.get("status")
-        ).lower()
-
-        explanation = clean_text(
+        explanation = safe_text(
             item.get("explanation")
         )
+
+        status = safe_text(
+            item.get("status")
+        ).lower()
 
         if not requirement:
             continue
 
         if status == "found":
-
-            normalized_status = "Found"
+            status = "Found"
 
         elif status == "partial":
-
-            normalized_status = "Partial"
+            status = "Partial"
 
         else:
+            status = "Missing"
 
-            normalized_status = "Missing"
-
-        cleaned.append(
+        requirements.append(
             {
                 "requirement": requirement,
-                "status": normalized_status,
-                "explanation": explanation
+                "status": status,
+                "explanation": explanation,
             }
         )
 
-    return cleaned
+    return requirements
 
 
 # ============================================================
@@ -293,9 +250,7 @@ if not api_key:
     st.stop()
 
 
-client = genai.Client(
-    api_key=api_key
-)
+client = genai.Client(api_key=api_key)
 
 
 # ============================================================
@@ -306,21 +261,20 @@ st.title("🚀 ResumeMatch Pro")
 
 st.markdown(
     """
-    <p class="subtitle">
-    AI-powered resume analysis that helps you understand
-    how well your resume matches a job.
-    </p>
+    <div class="subtitle">
+        AI-powered resume analysis that helps you understand
+        how well your resume matches a job.
+    </div>
     """,
-    unsafe_allow_html=True
+    unsafe_allow_html=True,
 )
 
 
 # ============================================================
-# INPUT AREA
+# INPUT SECTION
 # ============================================================
 
 resume_col, job_col = st.columns(2)
-
 
 with resume_col:
 
@@ -328,7 +282,7 @@ with resume_col:
 
     uploaded_file = st.file_uploader(
         "Upload your resume as a PDF",
-        type=["pdf"]
+        type=["pdf"],
     )
 
 
@@ -339,7 +293,7 @@ with job_col:
     job_description = st.text_area(
         "Paste the complete job description",
         height=180,
-        placeholder="Paste the job description here..."
+        placeholder="Paste the job description here...",
     )
 
 
@@ -347,22 +301,18 @@ with job_col:
 # ANALYZE BUTTON
 # ============================================================
 
-analyze_button = st.button(
+analyze = st.button(
     "✨ Analyze Resume",
     type="primary",
-    use_container_width=True
+    use_container_width=True,
 )
 
 
 # ============================================================
-# ANALYZE RESUME
+# ANALYSIS
 # ============================================================
 
-if analyze_button:
-
-    # --------------------------------------------------------
-    # VALIDATE INPUT
-    # --------------------------------------------------------
+if analyze:
 
     if uploaded_file is None:
 
@@ -384,20 +334,18 @@ if analyze_button:
             # READ PDF
             # ------------------------------------------------
 
-            pdf_reader = pypdf.PdfReader(
+            pdf = pypdf.PdfReader(
                 uploaded_file
             )
 
             resume_text = ""
 
-            for page in pdf_reader.pages:
+            for page in pdf.pages:
 
-                page_text = page.extract_text()
+                text = page.extract_text()
 
-                if page_text:
-
-                    resume_text += page_text + "\n"
-
+                if text:
+                    resume_text += text + "\n"
 
             resume_text = resume_text.strip()
 
@@ -405,89 +353,77 @@ if analyze_button:
             if not resume_text:
 
                 st.error(
-                    "I could not extract text from this PDF. "
-                    "Please upload a text-based PDF resume."
+                    "Could not extract text from the PDF. "
+                    "Please upload a text-based resume PDF."
                 )
 
             else:
 
                 # --------------------------------------------
-                # GEMINI PROMPT
+                # PROMPT
                 # --------------------------------------------
 
                 prompt = f"""
 You are an expert ATS resume evaluator,
 professional recruiter, and hiring analyst.
 
-Compare the candidate's resume against the target
-job description.
+Compare the resume against the job description.
 
 IMPORTANT RULES:
 
-1. Do not invent information.
+1. Never invent information.
 
-2. Only give credit when the resume contains evidence.
+2. Only give credit when the resume provides evidence.
 
 3. Be realistic and conservative.
 
 4. Compare actual professional experience against
-   required professional experience.
+   the experience required by the job.
 
-5. Do not treat education as professional experience.
+5. Do not count education as professional work experience.
 
-6. Do not treat a related technology as an exact
-   technology unless the resume provides evidence.
+6. Do not treat a related technology as an exact technology
+   unless the resume provides evidence.
 
-7. Identify the important requirements from the
-   job description.
+7. Identify the important requirements from the job description.
 
-8. For every important requirement use exactly one
-   of these statuses:
+8. Classify every important requirement as exactly:
 
    Found
    Partial
    Missing
 
-9. Found means the resume clearly demonstrates
-   the requirement.
+9. Found means the resume clearly demonstrates the requirement.
 
-10. Partial means related evidence exists but the
-    requirement is not completely satisfied.
+10. Partial means related evidence exists but the requirement
+    is not completely satisfied.
 
-11. Missing means there is no meaningful evidence
-    for the requirement.
+11. Missing means there is no meaningful evidence.
 
-12. For years of experience, compare the actual
-    demonstrated professional experience against
-    the requested years.
+12. Compare required years of experience carefully.
 
-13. Keep the explanations concise and useful.
+13. Generate 4-10 important requirements when possible.
 
-14. All six category scores must be integers
-    between 0 and 100.
+14. Category scores must be integers from 0 to 100.
 
-15. Generate between 4 and 10 important job
-    requirements when possible.
-
-16. Do not inflate scores simply because the candidate
-    has a related degree or is studying the subject.
+15. Do not inflate scores because the candidate has a related degree.
 
 RESUME:
 
 {resume_text}
 
-TARGET JOB DESCRIPTION:
+JOB DESCRIPTION:
 
 {job_description}
 """
 
 
                 # --------------------------------------------
-                # CALL GEMINI
+                # GEMINI
                 # --------------------------------------------
 
                 with st.spinner(
-                    "Analyzing your resume against the job..."
+                    "Analyzing your resume..."
                 ):
 
                     response = client.models.generate_content(
@@ -496,41 +432,16 @@ TARGET JOB DESCRIPTION:
                         config=types.GenerateContentConfig(
                             response_mime_type="application/json",
                             response_schema=ResumeAnalysis,
-                            temperature=0.2
-                        )
+                            temperature=0.2,
+                        ),
                     )
 
 
                 # --------------------------------------------
-                # GET STRUCTURED RESULT
+                # STRUCTURED RESULT
                 # --------------------------------------------
 
                 result = response.parsed
-
-
-                # --------------------------------------------
-                # FALLBACK JSON PARSING
-                # --------------------------------------------
-
-                if result is None:
-
-                    response_text = getattr(
-                        response,
-                        "text",
-                        None
-                    )
-
-                    if response_text:
-
-                        try:
-
-                            result = ResumeAnalysis.model_validate(
-                                json.loads(response_text)
-                            )
-
-                        except Exception:
-
-                            result = None
 
 
                 if result is None:
@@ -546,197 +457,167 @@ TARGET JOB DESCRIPTION:
                     # CONVERT TO DICTIONARY
                     # ----------------------------------------
 
-                    result_data = result.model_dump()
+                    data = result.model_dump()
 
 
                     # ----------------------------------------
-                    # CATEGORY SCORES
+                    # SCORES
                     # ----------------------------------------
 
-                    category_scores = result_data.get(
+                    raw_scores = data.get(
                         "category_scores",
-                        {}
+                        {},
                     )
 
 
-                    skills_score = clamp_score(
-                        category_scores.get(
-                            "skills_match",
-                            0
-                        )
+                    scores = {
+                        "skills": safe_score(
+                            raw_scores.get(
+                                "skills_match",
+                                0,
+                            )
+                        ),
+                        "experience": safe_score(
+                            raw_scores.get(
+                                "experience_match",
+                                0,
+                            )
+                        ),
+                        "responsibilities": safe_score(
+                            raw_scores.get(
+                                "responsibilities_match",
+                                0,
+                            )
+                        ),
+                        "tools": safe_score(
+                            raw_scores.get(
+                                "tools_match",
+                                0,
+                            )
+                        ),
+                        "education": safe_score(
+                            raw_scores.get(
+                                "education_match",
+                                0,
+                            )
+                        ),
+                        "evidence": safe_score(
+                            raw_scores.get(
+                                "evidence_match",
+                                0,
+                            )
+                        ),
+                    }
+
+
+                    final_score = calculate_final_score(
+                        scores
                     )
 
-
-                    experience_score = clamp_score(
-                        category_scores.get(
-                            "experience_match",
-                            0
-                        )
-                    )
-
-
-                    responsibilities_score = clamp_score(
-                        category_scores.get(
-                            "responsibilities_match",
-                            0
-                        )
-                    )
-
-
-                    tools_score = clamp_score(
-                        category_scores.get(
-                            "tools_match",
-                            0
-                        )
-                    )
-
-
-                    education_score = clamp_score(
-                        category_scores.get(
-                            "education_match",
-                            0
-                        )
-                    )
-
-
-                    evidence_score = clamp_score(
-                        category_scores.get(
-                            "evidence_match",
-                            0
-                        )
-                    )
-
-
-                    # ----------------------------------------
-                    # WEIGHTED SCORE
-                    # ----------------------------------------
-
-                    final_score = round(
-
-                        skills_score * 0.25
-
-                        + experience_score * 0.20
-
-                        + responsibilities_score * 0.20
-
-                        + tools_score * 0.15
-
-                        + education_score * 0.10
-
-                        + evidence_score * 0.10
-
-                    )
-
-
-                    final_score = clamp_score(
+                    final_score = safe_score(
                         final_score
                     )
 
 
                     # ----------------------------------------
-                    # ATS REQUIREMENTS
+                    # REQUIREMENTS
                     # ----------------------------------------
 
                     requirements = normalize_requirements(
-                        result_data.get(
+                        data.get(
                             "requirements",
-                            []
+                            [],
                         )
                     )
 
 
                     # ----------------------------------------
-                    # ATS SCORE
+                    # ATS
                     # ----------------------------------------
 
                     (
                         ats_score,
                         found_count,
                         partial_count,
-                        missing_count
-                    ) = calculate_ats_score(
+                        missing_count,
+                    ) = calculate_ats(
                         requirements
                     )
 
 
                     # ----------------------------------------
-                    # MATCH STATUS
+                    # STATUS
                     # ----------------------------------------
 
                     (
-                        match_status,
-                        status_message
-                    ) = get_match_status(
+                        match_label,
+                        match_message,
+                    ) = match_status(
                         final_score
                     )
 
 
                     # ----------------------------------------
-                    # CLEAN TEXT FIELDS
+                    # CLEAN TEXT
                     # ----------------------------------------
 
-                    result_data["overall_assessment"] = clean_text(
-                        result_data.get(
+                    data["overall_assessment"] = safe_text(
+                        data.get(
                             "overall_assessment"
                         )
                     )
 
-
-                    result_data["experience_explanation"] = clean_text(
-                        result_data.get(
+                    data["experience_explanation"] = safe_text(
+                        data.get(
                             "experience_explanation"
                         )
                     )
 
-
-                    result_data["strengths"] = clean_list(
-                        result_data.get(
+                    data["strengths"] = safe_list(
+                        data.get(
                             "strengths",
-                            []
+                            [],
                         )
                     )
 
-
-                    result_data["missing_skills"] = clean_list(
-                        result_data.get(
+                    data["missing_skills"] = safe_list(
+                        data.get(
                             "missing_skills",
-                            []
+                            [],
                         )
                     )
 
-
-                    result_data["weak_requirements"] = clean_list(
-                        result_data.get(
+                    data["weak_requirements"] = safe_list(
+                        data.get(
                             "weak_requirements",
-                            []
+                            [],
                         )
                     )
 
-
-                    result_data["improvement_suggestions"] = clean_list(
-                        result_data.get(
+                    data["improvement_suggestions"] = safe_list(
+                        data.get(
                             "improvement_suggestions",
-                            []
+                            [],
                         )
                     )
 
-
-                    result_data["interview_questions"] = clean_list(
-                        result_data.get(
+                    data["interview_questions"] = safe_list(
+                        data.get(
                             "interview_questions",
-                            []
+                            [],
                         )
                     )
 
-
-                    result_data["requirements"] = requirements
+                    data["requirements"] = requirements
 
 
                     # ----------------------------------------
-                    # SAVE RESULT
+                    # SAVE TO SESSION STATE
                     # ----------------------------------------
 
-                    st.session_state["analysis_result"] = result_data
+                    st.session_state["analysis"] = data
+
+                    st.session_state["scores"] = scores
 
                     st.session_state["final_score"] = final_score
 
@@ -748,141 +629,59 @@ TARGET JOB DESCRIPTION:
 
                     st.session_state["missing_count"] = missing_count
 
-                    st.session_state["match_status"] = match_status
+                    st.session_state["match_label"] = match_label
 
-                    st.session_state["status_message"] = status_message
+                    st.session_state["match_message"] = match_message
 
 
                     st.success(
-                        "Resume analysis completed successfully."
+                        "Analysis completed successfully."
                     )
 
 
+        except Exception as error:
+
+            st.error(
+                "Something went wrong while analyzing the resume."
+            )
+
+            st.caption(
+                f"Technical details: {error}"
+            )
+
+
 # ============================================================
-# DISPLAY RESULTS
+# RESULTS
 # ============================================================
 
-if "analysis_result" in st.session_state:
+if "analysis" in st.session_state:
 
-    result = st.session_state["analysis_result"]
+    data = st.session_state["analysis"]
 
+    scores = st.session_state["scores"]
 
-    # --------------------------------------------------------
-    # GET SAVED VALUES
-    # --------------------------------------------------------
+    final_score = st.session_state["final_score"]
 
-    final_score = st.session_state.get(
-        "final_score",
-        0
-    )
+    ats_score = st.session_state["ats_score"]
 
+    found_count = st.session_state["found_count"]
 
-    ats_score = st.session_state.get(
-        "ats_score",
-        0
-    )
+    partial_count = st.session_state["partial_count"]
 
+    missing_count = st.session_state["missing_count"]
 
-    found_count = st.session_state.get(
-        "found_count",
-        0
-    )
+    match_label = st.session_state["match_label"]
 
+    match_message = st.session_state["match_message"]
 
-    partial_count = st.session_state.get(
-        "partial_count",
-        0
-    )
-
-
-    missing_count = st.session_state.get(
-        "missing_count",
-        0
-    )
-
-
-    match_status = st.session_state.get(
-        "match_status",
-        "Unknown"
-    )
-
-
-    status_message = st.session_state.get(
-        "status_message",
-        ""
-    )
-
-
-    # --------------------------------------------------------
-    # CATEGORY SCORES
-    # --------------------------------------------------------
-
-    category_scores = result.get(
-        "category_scores",
-        {}
-    )
-
-
-    skills_score = clamp_score(
-        category_scores.get(
-            "skills_match",
-            0
-        )
-    )
-
-
-    experience_score = clamp_score(
-        category_scores.get(
-            "experience_match",
-            0
-        )
-    )
-
-
-    responsibilities_score = clamp_score(
-        category_scores.get(
-            "responsibilities_match",
-            0
-        )
-    )
-
-
-    tools_score = clamp_score(
-        category_scores.get(
-            "tools_match",
-            0
-        )
-    )
-
-
-    education_score = clamp_score(
-        category_scores.get(
-            "education_match",
-            0
-        )
-    )
-
-
-    evidence_score = clamp_score(
-        category_scores.get(
-            "evidence_match",
-            0
-        )
-    )
-
-
-    # --------------------------------------------------------
-    # REQUIREMENTS
-    # --------------------------------------------------------
-
-    requirements = result.get(
+    requirements = data.get(
         "requirements",
-        []
+        [],
     )
 
 
     # ========================================================
-    # RESULTS
+    # ANALYSIS HEADER
     # ========================================================
 
     st.divider()
@@ -891,11 +690,11 @@ if "analysis_result" in st.session_state:
 
     st.markdown(
         """
-        <p class="section-description">
-        AI evaluation across resume-to-job compatibility dimensions.
-        </p>
+        <div class="small-text">
+            AI evaluation across resume-to-job compatibility dimensions.
+        </div>
         """,
-        unsafe_allow_html=True
+        unsafe_allow_html=True,
     )
 
 
@@ -905,12 +704,11 @@ if "analysis_result" in st.session_state:
 
     score_col, fit_col = st.columns(2)
 
-
     with score_col:
 
         st.metric(
             "Overall Match Score",
-            f"{final_score}%"
+            f"{final_score}%",
         )
 
 
@@ -918,33 +716,27 @@ if "analysis_result" in st.session_state:
 
         st.metric(
             "Candidate Fit",
-            match_status
+            match_label,
         )
 
 
     st.progress(
         final_score / 100,
-        text=f"Overall compatibility: {final_score}%"
+        text=f"Overall compatibility: {final_score}%",
     )
 
 
     if final_score >= 80:
 
-        st.success(
-            status_message
-        )
+        st.success(match_message)
 
     elif final_score >= 60:
 
-        st.warning(
-            status_message
-        )
+        st.warning(match_message)
 
     else:
 
-        st.error(
-            status_message
-        )
+        st.error(match_message)
 
 
     # ========================================================
@@ -954,53 +746,57 @@ if "analysis_result" in st.session_state:
     st.subheader("📈 Match Breakdown")
 
 
-    score_items = [
-        ("Skills", skills_score),
-        ("Experience", experience_score),
-        ("Responsibilities", responsibilities_score),
-        ("Tools & Technology", tools_score),
-        ("Education", education_score),
-        ("Evidence / Projects", evidence_score)
+    breakdown = [
+        ("Skills", scores["skills"]),
+        ("Experience", scores["experience"]),
+        ("Responsibilities", scores["responsibilities"]),
+        ("Tools & Technology", scores["tools"]),
+        ("Education", scores["education"]),
+        ("Evidence / Projects", scores["evidence"]),
     ]
 
 
-    first_row = st.columns(3)
+    row_one = st.columns(3)
 
 
-    for column, (label, value) in zip(
-        first_row,
-        score_items[:3]
+    for column, item in zip(
+        row_one,
+        breakdown[:3],
     ):
+
+        label, value = item
 
         with column:
 
             st.metric(
                 label,
-                f"{value}%"
+                f"{value}%",
             )
 
             st.progress(
-                value / 100
+                value / 100,
             )
 
 
-    second_row = st.columns(3)
+    row_two = st.columns(3)
 
 
-    for column, (label, value) in zip(
-        second_row,
-        score_items[3:]
+    for column, item in zip(
+        row_two,
+        breakdown[3:],
     ):
+
+        label, value = item
 
         with column:
 
             st.metric(
                 label,
-                f"{value}%"
+                f"{value}%",
             )
 
             st.progress(
-                value / 100
+                value / 100,
             )
 
 
@@ -1014,12 +810,11 @@ if "analysis_result" in st.session_state:
 
     st.markdown(
         """
-        <p class="section-description">
-        How well your resume covers the important requirements
-        in the target job description.
-        </p>
+        <div class="small-text">
+            Coverage of important requirements identified from the job description.
+        </div>
         """,
-        unsafe_allow_html=True
+        unsafe_allow_html=True,
     )
 
 
@@ -1030,7 +825,7 @@ if "analysis_result" in st.session_state:
 
         st.metric(
             "ATS Coverage",
-            f"{ats_score}%"
+            f"{ats_score}%",
         )
 
 
@@ -1038,7 +833,7 @@ if "analysis_result" in st.session_state:
 
         st.metric(
             "Found",
-            found_count
+            found_count,
         )
 
 
@@ -1046,7 +841,7 @@ if "analysis_result" in st.session_state:
 
         st.metric(
             "Partial",
-            partial_count
+            partial_count,
         )
 
 
@@ -1054,13 +849,13 @@ if "analysis_result" in st.session_state:
 
         st.metric(
             "Missing",
-            missing_count
+            missing_count,
         )
 
 
     st.progress(
         ats_score / 100,
-        text=f"ATS requirement coverage: {ats_score}%"
+        text=f"ATS requirement coverage: {ats_score}%",
     )
 
 
@@ -1074,36 +869,31 @@ if "analysis_result" in st.session_state:
     if not requirements:
 
         st.info(
-            "No specific requirements were identified from this job description."
+            "No specific requirements were identified."
         )
-
 
     else:
 
-        for index, item in enumerate(
-            requirements
-        ):
+        for item in requirements:
 
-            requirement = clean_text(
+            requirement = safe_text(
                 item.get(
                     "requirement",
-                    ""
+                    "",
                 )
             )
 
-
-            status = clean_text(
+            status = safe_text(
                 item.get(
                     "status",
-                    "Missing"
+                    "Missing",
                 )
             ).lower()
 
-
-            explanation = clean_text(
+            explanation = safe_text(
                 item.get(
                     "explanation",
-                    ""
+                    "",
                 )
             )
 
@@ -1118,9 +908,7 @@ if "analysis_result" in st.session_state:
 
             if status == "found":
 
-                with st.container(
-                    border=True
-                ):
+                with st.container(border=True):
 
                     st.markdown(
                         f"**✅ {requirement}**"
@@ -1143,9 +931,7 @@ if "analysis_result" in st.session_state:
 
             elif status == "partial":
 
-                with st.container(
-                    border=True
-                ):
+                with st.container(border=True):
 
                     st.markdown(
                         f"**⚠️ {requirement}**"
@@ -1168,9 +954,7 @@ if "analysis_result" in st.session_state:
 
             else:
 
-                with st.container(
-                    border=True
-                ):
+                with st.container(border=True):
 
                     st.markdown(
                         f"**❌ {requirement}**"
@@ -1193,17 +977,15 @@ if "analysis_result" in st.session_state:
 
     st.subheader("🧠 Overall Assessment")
 
-
-    overall_assessment = result.get(
+    assessment = data.get(
         "overall_assessment",
-        ""
+        "",
     )
 
-
-    if overall_assessment:
+    if assessment:
 
         st.info(
-            overall_assessment
+            assessment
         )
 
 
@@ -1213,17 +995,15 @@ if "analysis_result" in st.session_state:
 
     st.subheader("💼 Experience Match")
 
-
-    experience_explanation = result.get(
+    experience = data.get(
         "experience_explanation",
-        ""
+        "",
     )
 
-
-    if experience_explanation:
+    if experience:
 
         st.write(
-            experience_explanation
+            experience
         )
 
 
@@ -1231,19 +1011,17 @@ if "analysis_result" in st.session_state:
     # STRENGTHS / MISSING SKILLS
     # ========================================================
 
-    strength_col, missing_col = st.columns(2)
+    left, right = st.columns(2)
 
 
-    with strength_col:
+    with left:
 
         st.subheader("✓ Resume Strengths")
 
-
-        strengths = result.get(
+        strengths = data.get(
             "strengths",
-            []
+            [],
         )
-
 
         if strengths:
 
@@ -1256,20 +1034,18 @@ if "analysis_result" in st.session_state:
         else:
 
             st.write(
-                "No specific strengths were identified."
+                "No specific strengths identified."
             )
 
 
-    with missing_col:
+    with right:
 
         st.subheader("⚠ Missing / Weak Skills")
 
-
-        missing_skills = result.get(
+        missing_skills = data.get(
             "missing_skills",
-            []
+            [],
         )
-
 
         if missing_skills:
 
@@ -1292,10 +1068,9 @@ if "analysis_result" in st.session_state:
 
     st.subheader("⚠ Weak Requirements")
 
-
-    weak_requirements = result.get(
+    weak_requirements = data.get(
         "weak_requirements",
-        []
+        [],
     )
 
 
@@ -1310,7 +1085,7 @@ if "analysis_result" in st.session_state:
     else:
 
         st.success(
-            "No major weak requirements were identified."
+            "No major weak requirements identified."
         )
 
 
@@ -1320,10 +1095,9 @@ if "analysis_result" in st.session_state:
 
     st.subheader("🚀 Improvement Suggestions")
 
-
-    suggestions = result.get(
+    suggestions = data.get(
         "improvement_suggestions",
-        []
+        [],
     )
 
 
@@ -1338,28 +1112,27 @@ if "analysis_result" in st.session_state:
     else:
 
         st.write(
-            "No additional improvement suggestions were identified."
+            "No additional suggestions identified."
         )
 
 
     # ========================================================
-    # INTERVIEW PREPARATION
+    # INTERVIEW QUESTIONS
     # ========================================================
 
     st.subheader("🎤 Interview Preparation")
 
-
-    interview_questions = result.get(
+    questions = data.get(
         "interview_questions",
-        []
+        [],
     )
 
 
-    if interview_questions:
+    if questions:
 
         for number, question in enumerate(
-            interview_questions,
-            start=1
+            questions,
+            start=1,
         ):
 
             st.write(
@@ -1369,5 +1142,5 @@ if "analysis_result" in st.session_state:
     else:
 
         st.write(
-            "No interview questions were generated."
+            "No interview questions generated."
         )
