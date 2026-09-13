@@ -1,4 +1,5 @@
 import os
+import json
 import streamlit as st
 from pypdf import PdfReader
 from google import genai
@@ -8,7 +9,7 @@ from typing import List
 
 
 # ============================================================
-# PAGE CONFIG
+# PAGE CONFIGURATION
 # ============================================================
 
 st.set_page_config(
@@ -20,160 +21,77 @@ st.set_page_config(
 
 
 # ============================================================
-# CUSTOM STYLING
+# CUSTOM UI
 # ============================================================
 
-st.markdown("""
-<style>
+st.markdown(
+    """
+    <style>
 
-    /* ---------- GLOBAL ---------- */
-
+    /* Main page */
     .block-container {
-        max-width: 1180px;
+        max-width: 1150px;
         padding-top: 2rem;
         padding-bottom: 4rem;
     }
 
     .stApp {
-        background: #f8fafc;
+        background-color: #f8fafc;
     }
 
-    /* ---------- HEADER ---------- */
-
+    /* Brand */
     .brand {
         font-size: 2.4rem;
         font-weight: 800;
         letter-spacing: -1px;
         color: #111827;
-        margin-bottom: 0.25rem;
+        margin-bottom: 0.2rem;
     }
 
     .tagline {
-        font-size: 1rem;
         color: #64748b;
+        font-size: 1rem;
         margin-bottom: 2rem;
     }
 
-    /* ---------- INPUT CARDS ---------- */
-
+    /* Section labels */
     .input-title {
         font-size: 1rem;
         font-weight: 700;
         color: #111827;
-        margin-bottom: 0.4rem;
+        margin-bottom: 0.25rem;
     }
 
     .input-subtitle {
-        font-size: 0.85rem;
         color: #64748b;
-        margin-bottom: 0.8rem;
+        font-size: 0.85rem;
+        margin-bottom: 0.7rem;
     }
 
-    /* ---------- ANALYZE BUTTON ---------- */
-
+    /* Buttons */
     .stButton > button {
-        width: 100%;
         border-radius: 10px;
-        height: 3rem;
+        min-height: 3rem;
         font-weight: 700;
         font-size: 1rem;
     }
 
-    /* ---------- SCORE CARD ---------- */
-
-    .score-card {
+    /* Metric */
+    [data-testid="stMetric"] {
         background: white;
         border: 1px solid #e2e8f0;
-        border-radius: 18px;
-        padding: 1.8rem;
-        text-align: center;
-        box-shadow: 0 4px 18px rgba(15, 23, 42, 0.05);
+        border-radius: 16px;
+        padding: 1.2rem;
+        box-shadow: 0 3px 12px rgba(15, 23, 42, 0.04);
     }
 
-    .score-label {
-        color: #64748b;
-        font-size: 0.9rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-    }
-
-    .score-number {
-        font-size: 4rem;
-        line-height: 1;
-        font-weight: 800;
-        color: #111827;
-        margin: 0.6rem 0;
-    }
-
-    .score-status {
-        display: inline-block;
-        padding: 0.35rem 0.8rem;
-        border-radius: 999px;
-        font-size: 0.85rem;
-        font-weight: 700;
-        background: #ecfdf5;
-        color: #047857;
-    }
-
-    /* ---------- SECTION HEADERS ---------- */
-
-    .section-title {
-        font-size: 1.35rem;
-        font-weight: 800;
-        color: #111827;
-        margin-top: 1.8rem;
-        margin-bottom: 0.8rem;
-    }
-
-    .section-description {
-        color: #64748b;
-        font-size: 0.9rem;
-        margin-bottom: 1rem;
-    }
-
-    /* ---------- RESULT CARDS ---------- */
-
-    .result-card {
-        background: white;
+    /* Expanders */
+    [data-testid="stExpander"] {
+        border-radius: 10px;
         border: 1px solid #e2e8f0;
-        border-radius: 14px;
-        padding: 1.2rem 1.4rem;
-        margin-bottom: 0.8rem;
-        color: #334155;
-        line-height: 1.6;
-        box-shadow: 0 2px 10px rgba(15, 23, 42, 0.03);
     }
 
-    .strength-card {
-        background: #f0fdf4;
-        border: 1px solid #bbf7d0;
-        border-radius: 12px;
-        padding: 1rem 1.2rem;
-        margin-bottom: 0.7rem;
-        color: #166534;
-    }
-
-    .warning-card {
-        background: #fffbeb;
-        border: 1px solid #fde68a;
-        border-radius: 12px;
-        padding: 1rem 1.2rem;
-        margin-bottom: 0.7rem;
-        color: #92400e;
-    }
-
-    .info-card {
-        background: #eff6ff;
-        border: 1px solid #bfdbfe;
-        border-radius: 12px;
-        padding: 1rem 1.2rem;
-        margin-bottom: 0.7rem;
-        color: #1e40af;
-    }
-
-    /* ---------- FOOTER ---------- */
-
+    /* Footer */
     .footer {
         text-align: center;
         color: #94a3b8;
@@ -183,8 +101,10 @@ st.markdown("""
         border-top: 1px solid #e2e8f0;
     }
 
-</style>
-""", unsafe_allow_html=True)
+    </style>
+    """,
+    unsafe_allow_html=True
+)
 
 
 # ============================================================
@@ -198,42 +118,45 @@ class ResumeAnalysis(BaseModel):
     )
 
     overall_assessment: str = Field(
-        description="Short overall assessment"
+        description="Short professional overall assessment"
     )
 
     strengths: List[str] = Field(
-        description="Important candidate strengths"
+        description="Important strengths of the candidate for this job"
     )
 
     missing_skills: List[str] = Field(
-        description="Missing or weak skills"
+        description="Missing or weak skills compared with the job"
     )
 
     experience_match: str = Field(
-        description="Experience match explanation"
+        description="Explanation of how the candidate experience matches the job"
     )
 
     weak_requirements: List[str] = Field(
-        description="Requirements not clearly demonstrated"
+        description="Job requirements that are not clearly demonstrated"
     )
 
     improvement_suggestions: List[str] = Field(
-        description="Resume improvement suggestions"
+        description="Specific suggestions to improve the resume for this job"
     )
 
     interview_questions: List[str] = Field(
-        description="Exactly five interview questions"
+        description="Exactly five relevant interview questions"
     )
 
 
 # ============================================================
-# GEMINI CONNECTION
+# GEMINI API
 # ============================================================
 
 api_key = os.environ.get("GEMINI_API_KEY")
 
 if not api_key:
-    st.error("Gemini API key is not configured.")
+    st.error(
+        "Gemini API key is not configured. "
+        "Please add GEMINI_API_KEY in Streamlit Secrets."
+    )
     st.stop()
 
 client = genai.Client(api_key=api_key)
@@ -257,13 +180,13 @@ st.markdown(
 
 
 # ============================================================
-# INPUT AREA
+# INPUT SECTION
 # ============================================================
 
-input_col1, input_col2 = st.columns([1, 1], gap="large")
+resume_col, jd_col = st.columns(2, gap="large")
 
 
-with input_col1:
+with resume_col:
 
     st.markdown(
         '<div class="input-title">📄 Your Resume</div>',
@@ -278,13 +201,13 @@ with input_col1:
     )
 
     resume_file = st.file_uploader(
-        "Upload Resume",
+        "Resume PDF",
         type=["pdf"],
         label_visibility="collapsed"
     )
 
 
-with input_col2:
+with jd_col:
 
     st.markdown(
         '<div class="input-title">💼 Target Job</div>',
@@ -313,7 +236,7 @@ st.write("")
 # ANALYZE BUTTON
 # ============================================================
 
-analyze = st.button(
+analyze_button = st.button(
     "✨ Analyze Resume",
     type="primary",
     use_container_width=True
@@ -321,22 +244,37 @@ analyze = st.button(
 
 
 # ============================================================
-# ANALYSIS
+# RUN AI ANALYSIS
 # ============================================================
 
-if analyze:
+if analyze_button:
 
+    # Check resume
     if resume_file is None:
 
         st.error("Please upload your resume PDF.")
 
-    elif len(job_description.strip()) < 50:
+        st.stop()
 
-        st.error("Please enter a complete job description.")
 
-    else:
+    # Check job description
+    if len(job_description.strip()) < 50:
+
+        st.error(
+            "Please paste a complete job description "
+            "(at least 50 characters)."
+        )
+
+        st.stop()
+
+
+    try:
 
         with st.spinner("Analyzing your resume with AI..."):
+
+            # --------------------------------------------
+            # Extract resume text
+            # --------------------------------------------
 
             reader = PdfReader(resume_file)
 
@@ -344,32 +282,79 @@ if analyze:
 
             for page in reader.pages:
 
-                text = page.extract_text()
+                page_text = page.extract_text()
 
-                if text:
-                    resume_text += text + "\n"
+                if page_text:
+                    resume_text += page_text + "\n"
 
+
+            if not resume_text.strip():
+
+                st.error(
+                    "I could not extract readable text from this PDF. "
+                    "Please try another PDF."
+                )
+
+                st.stop()
+
+
+            # --------------------------------------------
+            # AI Prompt
+            # --------------------------------------------
 
             prompt = f"""
-Analyze this resume against the job description.
+You are an experienced technical recruiter and resume analyst.
 
-RESUME:
+Analyze the candidate's resume against the target job description.
+
+========================
+CANDIDATE RESUME
+========================
+
 {resume_text}
 
-JOB DESCRIPTION:
+========================
+TARGET JOB DESCRIPTION
+========================
+
 {job_description}
 
-Provide a professional recruitment analysis.
+========================
+ANALYSIS REQUIREMENTS
+========================
 
-Rules:
+Provide a realistic and evidence-based analysis.
 
-- Give a realistic match score from 0 to 100.
-- Consider skills, experience, responsibilities, education, tools and evidence.
-- Do not rely only on keywords.
-- Do not invent information.
-- Clearly identify missing or weak requirements.
-- Provide exactly 5 interview questions.
+1. Give an overall match score from 0 to 100.
+
+2. Consider:
+   - Technical skills
+   - Tools and technologies
+   - Work experience
+   - Responsibilities
+   - Education
+   - Projects
+   - Evidence of required skills
+
+3. Do not give a high score only because keywords appear.
+
+4. Do not invent experience, skills, projects or qualifications.
+
+5. Clearly identify missing or weak requirements.
+
+6. Explain the experience match realistically.
+
+7. Give practical resume improvement suggestions.
+
+8. Generate exactly 5 interview questions based on the job and the candidate.
+
+Keep the analysis professional, concise and useful for a job seeker.
 """
+
+
+            # --------------------------------------------
+            # Gemini structured response
+            # --------------------------------------------
 
             response = client.models.generate_content(
                 model="gemini-3.6-flash",
@@ -380,10 +365,69 @@ Rules:
                 )
             )
 
-            result = response.parsed
 
-            # Store result so it survives Streamlit reruns
+            # --------------------------------------------
+            # Parse AI result
+            # --------------------------------------------
+
+            parsed_result = response.parsed
+
+            if parsed_result is None:
+
+                if not response.text:
+
+                    st.error(
+                        "The AI returned an empty response. "
+                        "Please try again."
+                    )
+
+                    st.stop()
+
+                data = json.loads(response.text)
+
+                result = ResumeAnalysis.model_validate(data)
+
+            else:
+
+                if isinstance(parsed_result, ResumeAnalysis):
+
+                    result = parsed_result
+
+                else:
+
+                    result = ResumeAnalysis.model_validate(
+                        parsed_result
+                    )
+
+
+            # --------------------------------------------
+            # Store result
+            # --------------------------------------------
+
             st.session_state["analysis_result"] = result
+
+
+    except json.JSONDecodeError:
+
+        st.error(
+            "The AI response could not be processed. "
+            "Please try the analysis again."
+        )
+
+        st.stop()
+
+
+    except Exception as e:
+
+        st.error(
+            "Something went wrong while analyzing the resume."
+        )
+
+        st.caption(
+            "Please check your API configuration or try again."
+        )
+
+        st.stop()
 
 
 # ============================================================
@@ -394,189 +438,208 @@ if "analysis_result" in st.session_state:
 
     result = st.session_state["analysis_result"]
 
-    score = result.match_score
+
+    # --------------------------------------------------------
+    # SAFE SCORE
+    # --------------------------------------------------------
+
+    try:
+
+        score = int(result.match_score)
+
+    except Exception:
+
+        score = 0
+
+
+    score = max(0, min(score, 100))
+
+
+    # --------------------------------------------------------
+    # MATCH STATUS
+    # --------------------------------------------------------
 
     if score >= 80:
+
         status = "Strong Match"
 
     elif score >= 60:
+
         status = "Moderate Match"
 
     else:
+
         status = "Low Match"
+
 
     st.divider()
 
-    # --------------------------------------------------------
-    # SCORE
-    # --------------------------------------------------------
 
-    score_col1, score_col2 = st.columns([1, 2], gap="large")
+    # ========================================================
+    # SCORE + ASSESSMENT
+    # ========================================================
 
-
-with score_col1:
-
-    st.markdown("### AI Match Score")
-
-    st.metric(
-        label="Resume compatibility",
-        value=f"{score}%"
-    )
-
-    if score >= 80:
-        st.success(f"✓ {status}")
-    elif score >= 60:
-        st.warning(f"⚠ {status}")
-    else:
-        st.error(f"✕ {status}")
-
-
-with score_col2:
-
-    st.markdown("### Overall Assessment")
-
-    st.markdown(
-        f"""
-        <div class="result-card">
-            {result.overall_assessment}
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-    st.progress(
-        min(max(score, 0), 100) / 100,
-        text=f"Resume compatibility: {score}%"
-    )
-
-    # --------------------------------------------------------
-    # EXPERIENCE
-    # --------------------------------------------------------
-
-    st.markdown(
-        '<div class="section-title">💼 Experience Match</div>',
-        unsafe_allow_html=True
-    )
-
-    st.markdown(
-        f"""
-        <div class="result-card">
-            {result.experience_match}
-        </div>
-        """,
-        unsafe_allow_html=True
+    score_col, assessment_col = st.columns(
+        [1, 2],
+        gap="large"
     )
 
 
-    # --------------------------------------------------------
+    with score_col:
+
+        st.markdown("### AI Match Score")
+
+        st.metric(
+            label="Resume compatibility",
+            value=f"{score}%"
+        )
+
+
+        if score >= 80:
+
+            st.success(f"✓ {status}")
+
+        elif score >= 60:
+
+            st.warning(f"⚠ {status}")
+
+        else:
+
+            st.error(f"✕ {status}")
+
+
+    with assessment_col:
+
+        st.markdown("### Overall Assessment")
+
+        st.info(result.overall_assessment)
+
+        st.progress(
+            score / 100,
+            text=f"Resume compatibility: {score}%"
+        )
+
+
+    # ========================================================
+    # EXPERIENCE MATCH
+    # ========================================================
+
+    st.markdown("### 💼 Experience Match")
+
+    st.write(result.experience_match)
+
+
+    # ========================================================
     # STRENGTHS + MISSING SKILLS
-    # --------------------------------------------------------
+    # ========================================================
 
-    col_strengths, col_missing = st.columns(2, gap="large")
-
-
-    with col_strengths:
-
-        st.markdown(
-            '<div class="section-title">✓ Resume Strengths</div>',
-            unsafe_allow_html=True
-        )
-
-        for item in result.strengths:
-
-            st.markdown(
-                f"""
-                <div class="strength-card">
-                    ✓ {item}
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
+    strengths_col, missing_col = st.columns(
+        2,
+        gap="large"
+    )
 
 
-    with col_missing:
+    with strengths_col:
 
-        st.markdown(
-            '<div class="section-title">⚠ Missing / Weak Skills</div>',
-            unsafe_allow_html=True
-        )
+        st.markdown("### ✓ Resume Strengths")
 
-        for item in result.missing_skills:
+        if result.strengths:
 
-            st.markdown(
-                f"""
-                <div class="warning-card">
-                    ⚠ {item}
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
+            for item in result.strengths:
+
+                st.success(item)
+
+        else:
+
+            st.write("No specific strengths were identified.")
 
 
-    # --------------------------------------------------------
+    with missing_col:
+
+        st.markdown("### ⚠ Missing / Weak Skills")
+
+        if result.missing_skills:
+
+            for item in result.missing_skills:
+
+                st.warning(item)
+
+        else:
+
+            st.success("No major skill gaps identified.")
+
+
+    # ========================================================
     # WEAK REQUIREMENTS
-    # --------------------------------------------------------
+    # ========================================================
 
-    st.markdown(
-        '<div class="section-title">🎯 Weak Requirements</div>',
-        unsafe_allow_html=True
-    )
+    st.markdown("### 🎯 Weak Requirements")
 
-    for item in result.weak_requirements:
+    if result.weak_requirements:
 
-        st.markdown(
-            f"""
-            <div class="warning-card">
-                {item}
-            </div>
-            """,
-            unsafe_allow_html=True
+        for item in result.weak_requirements:
+
+            st.warning(item)
+
+    else:
+
+        st.success(
+            "The resume demonstrates the major requirements of the job."
         )
 
 
-    # --------------------------------------------------------
+    # ========================================================
     # IMPROVEMENT SUGGESTIONS
-    # --------------------------------------------------------
+    # ========================================================
 
-    st.markdown(
-        '<div class="section-title">💡 Improvement Suggestions</div>',
-        unsafe_allow_html=True
+    st.markdown("### 💡 Improvement Suggestions")
+
+    if result.improvement_suggestions:
+
+        for i, item in enumerate(
+            result.improvement_suggestions,
+            start=1
+        ):
+
+            st.info(f"**{i}.** {item}")
+
+    else:
+
+        st.write("No additional suggestions were generated.")
+
+
+    # ========================================================
+    # INTERVIEW PREPARATION
+    # ========================================================
+
+    st.markdown("### 🎤 Interview Preparation")
+
+    st.caption(
+        "Questions you may want to prepare for based on this job."
     )
 
-    for item in result.improvement_suggestions:
 
-        st.markdown(
-            f"""
-            <div class="info-card">
-                {item}
-            </div>
-            """,
-            unsafe_allow_html=True
+    questions = result.interview_questions[:5]
+
+
+    if questions:
+
+        for i, question in enumerate(
+            questions,
+            start=1
+        ):
+
+            with st.expander(
+                f"Question {i}"
+            ):
+
+                st.write(question)
+
+    else:
+
+        st.write(
+            "No interview questions were generated."
         )
-
-
-    # --------------------------------------------------------
-    # INTERVIEW QUESTIONS
-    # --------------------------------------------------------
-
-    st.markdown(
-        '<div class="section-title">🎤 Interview Preparation</div>',
-        unsafe_allow_html=True
-    )
-
-    st.markdown(
-        '<div class="section-description">'
-        'Questions you may want to prepare for based on this job.'
-        '</div>',
-        unsafe_allow_html=True
-    )
-
-
-    for i, question in enumerate(result.interview_questions, 1):
-
-        with st.expander(f"Question {i}"):
-
-            st.write(question)
 
 
 # ============================================================
