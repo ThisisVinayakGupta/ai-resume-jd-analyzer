@@ -398,28 +398,20 @@ if "analysis_result" in st.session_state:
 
     if score >= 80:
         status = "Strong Match"
-        status_color = "#047857"
-        status_background = "#ecfdf5"
 
     elif score >= 60:
         status = "Moderate Match"
-        status_color = "#b45309"
-        status_background = "#fffbeb"
 
     else:
         status = "Low Match"
-        status_color = "#b91c1c"
-        status_background = "#fef2f2"
-
 
     st.divider()
 
+    # --------------------------------------------------------
+    # SCORE
+    # --------------------------------------------------------
 
-   # --------------------------------------------------------
-# SCORE
-# --------------------------------------------------------
-
-score_col1, score_col2 = st.columns([1, 2], gap="large")
+    score_col1, score_col2 = st.columns([1, 2], gap="large")
 
 
 with score_col1:
