@@ -420,66 +420,47 @@ if "analysis_result" in st.session_state:
     st.divider()
 
 
-    # --------------------------------------------------------
-    # SCORE
-    # --------------------------------------------------------
+   # --------------------------------------------------------
+# SCORE
+# --------------------------------------------------------
 
-    score_col1, score_col2 = st.columns([1, 2], gap="large")
-
-
-    with score_col1:
-
-        st.markdown(
-            f"""
-            <div class="score-card">
-
-                <div class="score-label">
-                    AI Match Score
-                </div>
-
-                <div class="score-number">
-                    {score}%
-                </div>
-
-                <div style="
-                    display:inline-block;
-                    padding:0.35rem 0.8rem;
-                    border-radius:999px;
-                    font-weight:700;
-                    font-size:0.85rem;
-                    color:{status_color};
-                    background:{status_background};
-                ">
-                    {status}
-                </div>
-
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+score_col1, score_col2 = st.columns([1, 2], gap="large")
 
 
-    with score_col2:
+with score_col1:
 
-        st.markdown(
-            '<div class="section-title">Overall Assessment</div>',
-            unsafe_allow_html=True
-        )
+    st.markdown("### AI Match Score")
 
-        st.markdown(
-            f"""
-            <div class="result-card">
-                {result.overall_assessment}
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+    st.metric(
+        label="Resume compatibility",
+        value=f"{score}%"
+    )
 
-        st.progress(
-            min(max(score, 0), 100) / 100,
-            text=f"Resume compatibility: {score}%"
-        )
+    if score >= 80:
+        st.success(f"✓ {status}")
+    elif score >= 60:
+        st.warning(f"⚠ {status}")
+    else:
+        st.error(f"✕ {status}")
 
+
+with score_col2:
+
+    st.markdown("### Overall Assessment")
+
+    st.markdown(
+        f"""
+        <div class="result-card">
+            {result.overall_assessment}
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    st.progress(
+        min(max(score, 0), 100) / 100,
+        text=f"Resume compatibility: {score}%"
+    )
 
     # --------------------------------------------------------
     # EXPERIENCE
