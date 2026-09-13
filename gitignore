@@ -1,9 +1,0 @@
-__pycache__/
-*.pyc
-.env
-.env.*
-secrets.toml
-streamlit.log
-cloudflared.log
-cloudflared
-.ipynb_checkpoints/
