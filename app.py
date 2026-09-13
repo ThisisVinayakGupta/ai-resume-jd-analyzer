@@ -65,13 +65,72 @@ st.set_page_config(
     page_icon="📄",
     layout="wide"
 )
+# -----------------------------
+# CUSTOM UI STYLE
+# -----------------------------
+st.markdown("""
+<style>
+    .main {
+        padding-top: 2rem;
+    }
 
-st.title("📄 AI Resume & JD Analyzer")
+    .hero {
+        padding: 2rem;
+        border-radius: 18px;
+        background: linear-gradient(135deg, #111827, #1f2937);
+        border: 1px solid #374151;
+        margin-bottom: 2rem;
+    }
 
-st.write(
-    "Upload your resume, paste a job description, "
-    "and get an AI-powered compatibility analysis."
-)
+    .hero h1 {
+        font-size: 2.6rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .hero p {
+        font-size: 1.05rem;
+        color: #d1d5db;
+    }
+
+    .section-title {
+        font-size: 1.35rem;
+        font-weight: 700;
+        margin-top: 1.5rem;
+        margin-bottom: 0.8rem;
+    }
+
+    .result-card {
+        padding: 1.2rem;
+        border-radius: 14px;
+        border: 1px solid #374151;
+        background: #111827;
+        margin-bottom: 1rem;
+    }
+
+    .score-number {
+        font-size: 3rem;
+        font-weight: 800;
+    }
+
+    .small-text {
+        color: #9ca3af;
+        font-size: 0.9rem;
+    }
+</style>
+""")
+
+st.markdown("""
+<div class="hero">
+    <h1>🚀 ResumeMatch Pro</h1>
+    <p>
+        AI-powered resume analysis that compares your resume
+        with a specific job description.
+    </p>
+</div>
+""", unsafe_allow_html=True)
+
+
+
 
 
 # -----------------------------
@@ -79,12 +138,12 @@ st.write(
 # -----------------------------
 
 resume_file = st.file_uploader(
-    "Upload Resume PDF",
+    "📄 Upload Your Resume",
     type=["pdf"]
 )
 
 job_description = st.text_area(
-    "Paste Job Description",
+    "💼 Paste Job Description",
     height=250,
     placeholder="Paste the complete job description here..."
 )
@@ -94,7 +153,7 @@ job_description = st.text_area(
 # ANALYZE
 # -----------------------------
 
-if st.button("Analyze Resume", type="primary"):
+if st.button("✨ Analyze My Resume", type="primary", use_container_width=True):
 
     if resume_file is None:
         st.error("Please upload a resume PDF.")
