@@ -73,15 +73,28 @@ def _application(evidence):
 
 
 def _wording_evidence(keyword, segments):
-    # Narrow, one-way relationship: a dashboard can support visualization.
-    # It never establishes a different named tool, certification, or experience duration.
-    if _normalize(keyword) not in {"data visualization", "data visualisation", "business intelligence"}:
+    # A dashboard can support broader visualization terminology.
+    # It does not establish experience with a different named tool.
+    if _normalize(keyword) not in {
+        "data visualization",
+        "data visualizations",
+        "data visualisation",
+        "data visualisations",
+        "business intelligence",
+    }:
         return ""
+
     for segment in segments:
-        if (_application(segment)
-                and re.search(r"\bdashboards?\b", segment, re.I)
-                and any(_matches(tool, segment) for tool in ("Power BI", "Tableau", "Looker"))):
+        if (
+            _application(segment)
+            and re.search(r"\bdashboards?\b", segment, re.I)
+            and any(
+                _matches(tool, segment)
+                for tool in ("Power BI", "Tableau", "Looker")
+            )
+        ):
             return segment
+
     return ""
 
 
@@ -111,12 +124,21 @@ def _relevant_quote(subject, quote):
 
 
 def _covers_requirement(subject, quote):
-    # Full semantic equivalence is not inferred. Numeric/tenure requirements
-    # need manual review, even when Gemini reports Found.
-    if re.search(r"\b(\d+|years?|months?|minimum|least)\b", subject, re.I):
+    # Numeric and duration requirements still need manual review.
+    if re.search(
+        r"\b(\d+|years?|months?|minimum|least)\b",
+        subject,
+        re.I,
+    ):
         return False
+
     terms = _requirement_terms(subject)
-    return bool(terms) and all(_matches(term, quote) for term in terms)
+
+    return bool(terms) and all(
+        _matches(term, quote)
+        or (term == "use" and _contains("used", quote))
+        for term in terms
+    )
 
 
 def _advice(subject, source, importance, gap, evidence, explanation):
