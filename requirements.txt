@@ -1,4 +1,6 @@
-streamlit
+streamlit[auth]>=1.64,<2
+Authlib>=1.3.2,<2
+google-cloud-firestore>=2.19,<3
 google-genai
 pypdf
 pydantic

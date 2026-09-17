@@ -10,6 +10,9 @@ from pydantic import BaseModel
 
 from keyword_matcher import match_keyword, calculate_keyword_coverage
 from recommendation_engine import build_recommendations
+from launch_ui import render_launch_shell
+from quota_ui import available_credits, reserve_credit, finish_credit
+from monthly_quota import QuotaExhausted, QuotaUnavailable
 
 
 # ============================================================
@@ -20,7 +23,7 @@ st.set_page_config(
     page_title="ResumeMatch Pro",
     page_icon="🚀",
     layout="wide",
-    initial_sidebar_state="collapsed",
+    initial_sidebar_state="auto",
 )
 
 
@@ -320,13 +323,21 @@ def analyze_keywords(keywords, resume_text):
 # GEMINI SETUP
 # ============================================================
 
+if not render_launch_shell():
+    st.stop()
+
 api_key = os.environ.get("GEMINI_API_KEY")
+
+if not api_key:
+    try:
+        api_key = st.secrets.get("GEMINI_API_KEY", "")
+    except FileNotFoundError:
+        api_key = ""
 
 if not api_key:
 
     st.error(
-        "Gemini API key is not configured. "
-        "Please add GEMINI_API_KEY in Streamlit Secrets."
+        "Resume analysis is temporarily unavailable. Please try again later."
     )
 
     st.stop()
@@ -339,8 +350,7 @@ client = genai.Client(api_key=api_key)
 # HEADER
 # ============================================================
 
-st.title("🚀 ResumeMatch Pro")
-st.caption("Phase 2B · Evidence-based recommendations")
+st.title("Analyze your resume")
 
 st.markdown(
     """
@@ -366,6 +376,7 @@ with resume_col:
     uploaded_file = st.file_uploader(
         "Upload your resume as a PDF",
         type=["pdf"],
+        key="resume_upload",
     )
 
 
@@ -377,6 +388,7 @@ with job_col:
         "Paste the complete job description",
         height=180,
         placeholder="Paste the job description here...",
+        key="job_description",
     )
 
 
@@ -388,6 +400,7 @@ analyze = st.button(
     "✨ Analyze Resume",
     type="primary",
     use_container_width=True,
+    disabled=available_credits() == 0,
 )
 
 
@@ -411,6 +424,8 @@ if analyze:
 
     else:
 
+        reservation = None
+        analysis_completed = False
         try:
 
             # ------------------------------------------------
@@ -531,6 +546,7 @@ JOB DESCRIPTION:
                     "Analyzing your resume..."
                 ):
 
+                    reservation = reserve_credit()
                     response = client.models.generate_content(
                         model="gemini-3.6-flash",
                         contents=prompt,
@@ -547,6 +563,7 @@ JOB DESCRIPTION:
                 # --------------------------------------------
 
                 result = response.parsed
+                analysis_completed = result is not None
 
 
                 if result is None:
@@ -771,15 +788,24 @@ JOB DESCRIPTION:
                     )
 
 
-        except Exception as error:
+        except QuotaExhausted:
+            st.warning("Your monthly analysis allowance is used. Sign in, review paid plans, or return next month.")
+
+        except QuotaUnavailable:
+            st.error("We could not verify your analysis allowance. Please try again later.")
+
+        except Exception:
 
             st.error(
                 "Something went wrong while analyzing the resume."
             )
 
-            st.caption(
-                f"Technical details: {error}"
-            )
+        finally:
+            if reservation is not None:
+                try:
+                    finish_credit(reservation, analysis_completed)
+                except QuotaUnavailable:
+                    st.warning("Your usage update is pending. Please return later if your remaining allowance looks incorrect.")
 
 
 # ============================================================
