@@ -159,6 +159,35 @@ class WordingRegressionTests(unittest.TestCase):
 
         self.assertEqual(result["gap_type"], "Wording Gap")
         self.assertEqual(result["evidence"], resume)
+class DashboardRequirementTests(unittest.TestCase):
+    def test_dashboard_requirement_recognizes_power_bi_evidence(self):
+        resume = "Created interactive dashboards using Power BI."
+        requirement = {
+            "requirement": (
+                "Create dashboards and data visualizations "
+                "using business intelligence tools."
+            ),
+            "status": "Found",
+            "importance": "High",
+            "evidence": resume,
+        }
 
+        result = build_recommendations([], [requirement], resume)[0]
+
+        self.assertEqual(result["gap_type"], "Strong Match")
+        self.assertEqual(result["evidence"], resume)
+
+    def test_power_bi_does_not_prove_tableau_requirement(self):
+        resume = "Created interactive dashboards using Power BI."
+        requirement = {
+            "requirement": "Create dashboards using Tableau.",
+            "status": "Found",
+            "importance": "High",
+            "evidence": resume,
+        }
+
+        result = build_recommendations([], [requirement], resume)[0]
+
+        self.assertEqual(result["gap_type"], "Proof Gap")
 if __name__ == "__main__":
     unittest.main()
