@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from keyword_matcher import match_keyword, calculate_keyword_coverage
 from recommendation_engine import build_recommendations
-from launch_ui import render_launch_shell
+from launch_ui import PAPERLIFT_LOGO, render_launch_shell
 from quota_ui import available_credits, reserve_credit, finish_credit
 from monthly_quota import QuotaExhausted, QuotaUnavailable
 
@@ -20,8 +20,8 @@ from monthly_quota import QuotaExhausted, QuotaUnavailable
 # ============================================================
 
 st.set_page_config(
-    page_title="ResumeMatch Pro",
-    page_icon="🚀",
+    page_title="Paperlift",
+    page_icon=PAPERLIFT_LOGO,
     layout="wide",
     initial_sidebar_state="auto",
 )
@@ -1354,7 +1354,7 @@ if "analysis" in st.session_state:
     # IMPROVEMENT SUGGESTIONS
     # ========================================================
 
-    st.subheader("🚀 Evidence-Based Recommendations")
+    st.subheader("Evidence-Based Recommendations")
     st.caption(
         "Advice uses evidence from the resume and does not change your scores. "
         "A True Gap means evidence was not found in this resume; it does not prove you lack the skill. "

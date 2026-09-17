@@ -9,6 +9,14 @@ from monthly_quota import QuotaUnavailable
 
 PAGES = ("Home", "Workspace", "Account", "Plans", "Help", "Privacy")
 GOOGLE_METADATA = "https://accounts.google.com/.well-known/openid-configuration"
+PAPERLIFT_LOGO = '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="32" height="32" role="img" aria-label="Paperlift logo">
+<title>Paperlift: a page with an upward arrow</title>
+<rect width="64" height="64" rx="15" fill="#2457A7"/>
+<path d="M18 12h18l10 10v30H18z" fill="#FFFFFF"/>
+<path d="M36 12v10h10z" fill="#B8D2F5"/>
+<path d="M25 43l13-13m-10 0h10v10" fill="none" stroke="#2457A7" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>'''
+BRAND_HTML = f'<div class="rm-brand">{PAPERLIFT_LOGO}<span>Paperlift</span></div>'
 
 
 def auth_is_configured():
@@ -107,9 +115,9 @@ def _styles():
     .rm-footer {border-top:1px solid #dde7e7; margin-top:2rem; padding-top:1rem;
         color:#64748b; font-size:.82rem;}
     .rm-greeting {color:#102a43; font-size:1.4rem; font-weight:600; margin:.5rem 0;}
-    .rm-brand {font-size:1.1rem; font-weight:750; color:#18324f; padding:.4rem 0;}
-    .rm-monogram {background:#2457a7; color:#fff; border-radius:5px; padding:.3rem;
-        margin-right:.4rem; font-size:.88rem;}
+    .rm-brand {display:flex; align-items:center; gap:.6rem; font-size:1.1rem;
+        font-weight:750; color:#18324f; padding:.4rem 0;}
+    .rm-brand svg {flex:none; width:32px; height:32px;}
     .rm-footer a {color:#2457a7; margin-left:1rem; text-decoration:none;}
     @media(max-width:800px) {.rm-hero {grid-template-columns:1fr; gap:1rem;} .rm-preview {display:none;}}
     @media(max-width:640px) {.rm-hero {padding-top:1rem;} .block-container {padding-top:1rem;}}
@@ -166,7 +174,7 @@ def _sign_in(configured):
     st.title("Your next step starts here")
     st.write("Sign in with Google to open your resume workspace. Your first sign-in creates your app session.")
     with st.container(border=True):
-        st.subheader("Welcome to ResumeMatch Pro")
+        st.subheader("Welcome to Paperlift")
         if configured:
             st.button("Continue with Google", type="primary", on_click=login,
                       key="google_sign_in", use_container_width=True)
@@ -174,7 +182,7 @@ def _sign_in(configured):
             st.info("Sign-in is being prepared. Please check back shortly.")
         if st.session_state.get("_launch_login_error"):
             st.warning("Sign-in could not start. Please try again or return later.")
-        st.caption("Your Google password stays with Google. ResumeMatch Pro does not ask for it.")
+        st.caption("Your Google password stays with Google. Paperlift does not ask for it.")
     st.button("Back to home", on_click=go_to, args=("Home",), key="login_home")
     if st.user.get("is_logged_in", False):
         if configured:
@@ -240,7 +248,7 @@ def _privacy():
 
 
 def _plans():
-    st.title("Choose how you use ResumeMatch Pro")
+    st.title("Choose how you use Paperlift")
     for column, (name, allowance, description) in zip(st.columns(3), (
         ("Guest", "3 / month", "Try the analyzer without signing in. Allowance is per browser."),
         ("Free account", "10 / month", "Sign in with Google for an account-based monthly allowance."),
@@ -268,7 +276,7 @@ def render_launch_shell():
             st.session_state["_launch_page"] = next(page for page in PAGES if page.casefold() == requested)
         st.session_state["_launch_route_initialized"] = True
     with st.sidebar:
-        st.subheader("🚀 ResumeMatch Pro")
+        st.markdown(BRAND_HTML, unsafe_allow_html=True)
         st.caption("Honest applications. Better decisions.")
         page = st.radio("Navigation", PAGES, key="_launch_page", label_visibility="collapsed")
         if identity:
@@ -277,7 +285,7 @@ def render_launch_shell():
     if st.query_params.get("page") != page.casefold():
         st.query_params["page"] = page.casefold()
     brand, plans, action = st.columns([4, 1, 1])
-    brand.markdown('<div class="rm-brand"><span class="rm-monogram">RM</span>ResumeMatch Pro</div>', unsafe_allow_html=True)
+    brand.markdown(BRAND_HTML, unsafe_allow_html=True)
     with plans:
         st.button("Plans", on_click=go_to, args=("Plans",), key="header_plans", use_container_width=True)
     with action:
@@ -315,6 +323,6 @@ def render_launch_shell():
     elif page == "Privacy":
         _privacy()
     if not show_workspace:
-        st.markdown('<div class="rm-footer">ResumeMatch Pro · Present your real experience with confidence. <a href="?page=help">Help</a><a href="?page=privacy">Privacy</a></div>',
+        st.markdown('<div class="rm-footer">Paperlift · Present your real experience with confidence. <a href="?page=help">Help</a><a href="?page=privacy">Privacy</a></div>',
                     unsafe_allow_html=True)
     return show_workspace
