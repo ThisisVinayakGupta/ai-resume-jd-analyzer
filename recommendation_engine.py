@@ -31,6 +31,37 @@ _STOP_WORDS = set(
     "demonstrated working professional years year at least have has must".split()
 )
 
+# Only these broader concepts can be supported by applied BI dashboard work.
+# Keep phrases explicit rather than stripping arbitrary words like "tools".
+_BI_TERMS = (
+    "business intelligence", "business intelligence tool", "business intelligence tools",
+    "bi", "bi tool", "bi tools",
+)
+_VISUALIZATION_TERMS = tuple(
+    f"{term}{suffix}"
+    for term in (
+        "data visualization", "data visualizations", "data visualisation", "data visualisations",
+    )
+    for suffix in ("", " tool", " tools")
+)
+_CONCEPTS = {
+    "business intelligence": _BI_TERMS,
+    "data visualization": _VISUALIZATION_TERMS,
+}
+_VERB_FORMS = (
+    ("use", "used", "using"),
+    ("build", "built", "building", "create", "created", "creating", "develop", "developed", "developing"),
+    ("design", "designed", "designing"),
+    ("validate", "validated", "validating"),
+    ("extract", "extracted", "extracting"),
+    ("analyze", "analyzed", "analyzing", "analyse", "analysed", "analysing"),
+    ("automate", "automated", "automating"),
+    ("implement", "implemented", "implementing"),
+    ("deploy", "deployed", "deploying"),
+    ("test", "tested", "testing"),
+)
+_NOUN_FORMS = (("dashboard", "dashboards"), ("report", "reports"))
+
 
 def _text(value):
     return value.strip() if isinstance(value, str) else ""
@@ -49,6 +80,9 @@ def _contains(term, text):
 
 def _aliases(keyword):
     key = _normalize(keyword)
+    for variants in _CONCEPTS.values():
+        if key in variants:
+            return list(variants)
     for canonical, aliases in SAFE_ALIASES.items():
         group = [canonical, *aliases]
         if key in [_normalize(item) for item in group]:
@@ -57,11 +91,27 @@ def _aliases(keyword):
 
 
 def _matches(keyword, text):
+    if _normalize(keyword) in _BI_TERMS:
+        # "BI" inside the product name Power BI is related evidence, not a
+        # literal mention of the broader concept. Route it through wording rules.
+        text = _normalize(text)
+        for name in _aliases("Power BI"):
+            text = re.sub(r"(?<![\w+#])" + re.escape(_normalize(name)) + r"(?![\w+#])", " ", text)
     return any(_contains(term, text) for term in _aliases(keyword))
 
 
 def _segments(resume):
-    return [part.strip() for part in re.split(r"\r?\n|(?<=[.!?])\s+", resume) if part.strip()]
+    # Keep skill lists separate from unrelated actions after a semicolon.
+    # Rejoin only clearly signalled continuation lines from PDF extraction.
+    lines = []
+    for line in resume.replace("\r\n", "\n").replace("\r", "\n").split("\n"):
+        if (lines and lines[-1].strip() and not re.search(r"[.!?]$", lines[-1].strip())
+                and re.match(r"^\s*(using|with|to|for|and|covering|including)\b", line, re.I)):
+            lines[-1] += "\n" + line
+        else:
+            lines.append(line)
+    return [part.strip() for line in lines
+            for part in re.split(r";|(?<=[.!?])\s+", line) if part.strip()]
 
 
 def _training(evidence):
@@ -69,19 +119,18 @@ def _training(evidence):
 
 
 def _application(evidence):
-    return bool(_ACTIONS.search(evidence)) and not _training(evidence) and not _UNSUPPORTED.search(evidence)
+    return (
+        bool(_ACTIONS.search(evidence))
+        and not re.match(r"^\s*(skills?|technologies|tools)\s*:", evidence, re.I)
+        and not _training(evidence)
+        and not _UNSUPPORTED.search(evidence)
+    )
 
 
 def _wording_evidence(keyword, segments):
     # A dashboard can support broader visualization terminology.
     # It does not establish experience with a different named tool.
-    if _normalize(keyword) not in {
-        "data visualization",
-        "data visualizations",
-        "data visualisation",
-        "data visualisations",
-        "business intelligence",
-    }:
+    if _normalize(keyword) not in {*_BI_TERMS, *_VISUALIZATION_TERMS}:
         return ""
 
     for segment in segments:
@@ -104,23 +153,53 @@ def _quote_in_source(quote, resume):
         return ""
     # Permit PDF whitespace wrapping, but preserve the exact original source text.
     pattern = r"\s+".join(re.escape(word) for word in quote.split())
-    match = re.search(r"(?<!\w)" + pattern + r"(?!\w)", resume)
-    if not match:
-        return ""
-    source = match.group(0)
-    # Inspect the complete containing segment so a quote cannot strip off negation.
-    if any(source in segment and _UNSUPPORTED.search(segment) for segment in _segments(resume)):
-        return ""
-    return source
+    # Sentence/paragraph boundaries preserve context across soft PDF line wraps.
+    # A cropped quote cannot remove "Coursework:" or a preceding "never".
+    boundaries = [(m.start(), m.end()) for m in re.finditer(r"(?<=[.!?])\s+|\n\s*\n", resume)]
+    candidates = []
+    for match in re.finditer(r"(?<!\w)" + pattern + r"(?!\w)", resume):
+        start = max((end for _, end in boundaries if end <= match.start()), default=0)
+        end = min((begin for begin, _ in boundaries if begin >= match.end()), default=len(resume))
+        source = resume[start:end].strip()
+        if not _UNSUPPORTED.search(source):
+            candidates.append(source)
+    # A training occurrence must not hide a later genuine work occurrence.
+    return next((source for source in candidates if _application(source)), candidates[0] if candidates else "")
 
 
 def _requirement_terms(subject):
-    return [term.rstrip(".") for term in re.findall(r"[\w+#.]+", subject.casefold())
-            if term.rstrip(".") not in _STOP_WORDS]
+    # Replace whole known phrases with atomic tokens before inspecting words.
+    # This prevents unrelated occurrences of "power" and "BI" proving Power BI.
+    groups = {canonical: [canonical, *aliases] for canonical, aliases in SAFE_ALIASES.items()}
+    groups.update(_CONCEPTS)
+    replacements = []
+    markers = {}
+    for index, (canonical, variants) in enumerate(groups.items()):
+        marker = f"knownphrase_{index}"
+        markers[marker] = canonical
+        replacements.extend((_normalize(variant), marker) for variant in variants)
+    normalized = _normalize(subject)
+    for variant, marker in sorted(replacements, key=lambda pair: len(pair[0]), reverse=True):
+        normalized = re.sub(
+            r"(?<![\w+#])" + re.escape(variant) + r"(?![\w+#])", marker, normalized
+        )
+    terms = [term.rstrip(".") for term in re.findall(r"[\w+#.]+", normalized)]
+    return [markers.get(term, term) for term in terms if term and term not in _STOP_WORDS]
+
+
+def _term_supported(term, quote):
+    if _matches(term, quote):
+        return True
+    if term in _CONCEPTS:
+        return bool(_wording_evidence(term, [quote]))
+    for forms in (*_VERB_FORMS, *_NOUN_FORMS):
+        if term in forms:
+            return any(_contains(form, quote) for form in forms)
+    return False
 
 
 def _relevant_quote(subject, quote):
-    return any(_matches(term, quote) for term in _requirement_terms(subject))
+    return any(_term_supported(term, quote) for term in _requirement_terms(subject))
 
 
 def _covers_requirement(subject, quote):
@@ -132,32 +211,16 @@ def _covers_requirement(subject, quote):
     ):
         return False
 
-    # Recognize this specific broader dashboard requirement.
-    # Requirements naming Tableau or extra skills do not use this shortcut.
-    normalized_subject = _normalize(subject).rstrip(".")
-    dashboard_requirements = {
-        (
-            "create dashboards and data visualizations "
-            "using business intelligence tools"
-        ),
-        (
-            "create dashboards and data visualisations "
-            "using business intelligence tools"
-        ),
-    }
-
-    if normalized_subject in dashboard_requirements:
-        return bool(
-            _wording_evidence("data visualization", [quote])
-        )
-
+    # Check EVERY remaining term. Supporting a broader concept never erases
+    # an extra named tool, certification, metric, or responsibility from the JD.
+    # Require the terms in one applied statement; a neighbouring skill list
+    # must not borrow application from unrelated work in the same paragraph.
     terms = _requirement_terms(subject)
-
-    return bool(terms) and all(
-        _matches(term, quote)
-        or (term == "use" and _contains("used", quote))
-        for term in terms
+    return bool(terms) and any(
+        _application(segment) and all(_term_supported(term, segment) for term in terms)
+        for segment in _segments(quote)
     )
+
 
 def _advice(subject, source, importance, gap, evidence, explanation):
     actions = {
@@ -213,7 +276,7 @@ def build_recommendations(keywords, requirements, resume_text):
                     evidence = _wording_evidence(subject, segments)
                     if evidence:
                         gap = "Wording Gap"
-                        explanation = "The quoted dashboard work may support this broader terminology. Confirm it accurately describes your work."
+                        explanation = "The quoted BI dashboard work supports this broader terminology. Confirm it accurately describes your work before editing."
             else:
                 evidence = _quote_in_source(item.get("evidence"), resume)
                 if evidence and not _relevant_quote(subject, evidence):

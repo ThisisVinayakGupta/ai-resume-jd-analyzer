@@ -1011,6 +1011,8 @@ if "analysis" in st.session_state:
             Important keywords are extracted from the job description, then matched
             against the actual resume text using deterministic Python rules. High-importance
             keywords carry more weight than Medium and Low-importance keywords.
+            Missing means the matcher did not find that keyword wording or its known aliases.
+            Related experience may still support a Wording Gap in the recommendations below.
         </div>
         """,
         unsafe_allow_html=True,
@@ -1064,7 +1066,12 @@ if "analysis" in st.session_state:
                 else:
                     st.error("Missing")
 
-                if evidence:
+                if status == "Missing":
+                    st.caption(
+                        "Keyword wording was not found by the existing matcher. "
+                        "See Evidence-Based Recommendations for related resume evidence."
+                    )
+                elif evidence:
                     st.caption(evidence)
 
         missing_keywords = [
@@ -1082,7 +1089,8 @@ if "analysis" in st.session_state:
             )[:8]:
                 st.warning(
                     f"{item.get('keyword')} ({item.get('importance')}): "
-                    "No evidence was found in the resume. Add it only if you genuinely have this skill or experience."
+                    "Keyword wording absent. Review recommendations for related evidence; "
+                    "add this wording only if it truthfully describes your skill or experience."
                 )
 
 
