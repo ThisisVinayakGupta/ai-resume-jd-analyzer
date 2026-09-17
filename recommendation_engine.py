@@ -132,6 +132,25 @@ def _covers_requirement(subject, quote):
     ):
         return False
 
+    # Recognize this specific broader dashboard requirement.
+    # Requirements naming Tableau or extra skills do not use this shortcut.
+    normalized_subject = _normalize(subject).rstrip(".")
+    dashboard_requirements = {
+        (
+            "create dashboards and data visualizations "
+            "using business intelligence tools"
+        ),
+        (
+            "create dashboards and data visualisations "
+            "using business intelligence tools"
+        ),
+    }
+
+    if normalized_subject in dashboard_requirements:
+        return bool(
+            _wording_evidence("data visualization", [quote])
+        )
+
     terms = _requirement_terms(subject)
 
     return bool(terms) and all(
@@ -139,7 +158,6 @@ def _covers_requirement(subject, quote):
         or (term == "use" and _contains("used", quote))
         for term in terms
     )
-
 
 def _advice(subject, source, importance, gap, evidence, explanation):
     actions = {
